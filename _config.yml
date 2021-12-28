@@ -1,10 +1,9 @@
 # Site settings
-title: 谛途
-email: dtynn@163.com
+title: 途
 description: "谛听走过的那些路"
 baseurl: ""
 url: "http://blog.dtynn.me"
 
-# Build settings
-markdown: kramdown
-permalink: pretty
+remote_theme: pages-themes/cayman@v0.2.0
+plugins:
+- jekyll-remote-theme # add this line to the plugins list if you already have one
