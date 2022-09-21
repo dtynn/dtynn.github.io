@@ -1,3 +1,15 @@
+<head>
+    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+    <script type="text/x-mathjax-config">
+        MathJax.Hub.Config({
+            tex2jax: {
+            skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+            inlineMath: [['$','$']]
+            }
+        });
+    </script>
+</head>
+
 ## 阅读《Chimp: Efficient Lossless Floating Point Compression for Time Series Databases》
 
 本文是对论文 [《Chimp: Efficient Lossless Floating Point Compression for Time Series Databases》](https://vldb.org/pvldb/vol15/p3058-liakos.pdf) 的简单解读，详细内容、图表等可以参考原文。
