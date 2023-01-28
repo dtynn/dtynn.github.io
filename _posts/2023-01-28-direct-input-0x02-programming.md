@@ -23,63 +23,73 @@
   使用 [winapi 库](https://crates.io/crates/winapi) 获取一些常量
 
 
-## 初始化/创建 DirectInput 实例
-通过 [DirectInput8Create 函数](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416756(v=vs.85)) 创建 [IDirectInput8 Interface](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417799(v=vs.85)) 实例。
+## 第一个示例
+我们首先通过 [DirectInput8Create 函数](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416756(v=vs.85)) 创建 [IDirectInput8 Interface](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417799(v=vs.85)) 实例，
+再使用 [IDirectInput8::EnumDevices 方法](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417804(v=vs.85)) 遍历输入设备。
 
 ```rust
-use core::ffi::c_void;
+use core::{ffi::c_void, mem::MaybeUninit};
 use std::ptr::null_mut;
 
 use windows::{
-    core::GUID,
+    core::{Interface, Vtable},
     Win32::{
-        Devices::HumanInterfaceDevice::{DirectInput8Create, IDirectInput8W, DIRECTINPUT_VERSION},
+        Devices::HumanInterfaceDevice::{
+            DirectInput8Create, IDirectInput8W, DI8DEVCLASS_ALL, DIDEVICEINSTANCEW,
+            DIEDFL_ATTACHEDONLY, DIRECTINPUT_VERSION,
+        },
+        Foundation::BOOL,
         System::LibraryLoader::GetModuleHandleW,
     },
 };
 
-// value from https://docs.rs/winapi/latest/winapi/um/dinput/constant.IID_IDirectInput8W.html
-const IID_IDIRECT_INPUT_8W: GUID = GUID::from_values(
-    0xbf798031,
-    0x483a,
-    0x4da2,
-    [0xaa, 0x99, 0x5d, 0x64, 0xed, 0x36, 0x97, 0x00],
-);
+unsafe extern "system" fn enum_device_callback(
+    info: *mut DIDEVICEINSTANCEW,
+    _extra: *mut c_void,
+) -> BOOL {
+    if !info.is_null() {
+        println!("info {:?}", &*info);
+    } else {
+        println!("null info");
+    }
+    BOOL::from(true)
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("A");
+
     unsafe {
-        let mut p = null_mut::<IDirectInput8W>();
-        let pptr: *mut *mut IDirectInput8W = &mut p;
         let hinstance = GetModuleHandleW(None)?;
         println!("get hinstance {:?}", hinstance);
 
-        println!("DIRECT VERSION: {:x}", DIRECTINPUT_VERSION);
-        println!("IID_IDirectInput8W: {:?}", IID_IDIRECT_INPUT_8W);
+        let mut res = MaybeUninit::zeroed();
+        let res_ptr = res.as_mut_ptr();
 
-        DirectInput8Create(
-            hinstance,
-            DIRECTINPUT_VERSION,
-            &IID_IDIRECT_INPUT_8W,
-            pptr as *mut *mut c_void,
-            None,
+        let refiid = <IDirectInput8W as Interface>::IID;
+
+        println!("DIRECT VERSION: {:x}", DIRECTINPUT_VERSION);
+        println!("IID: {:?}", refiid);
+
+        DirectInput8Create(hinstance, DIRECTINPUT_VERSION, &refiid, res_ptr, None)?;
+
+        let di = IDirectInput8W::from_raw(*res_ptr);
+        println!("created!");
+
+        println!("init");
+        di.Initialize(hinstance, DIRECTINPUT_VERSION)?;
+
+        println!("start to enum attached keyboard devices");
+        let enum_param_null = null_mut::<c_void>();
+        di.EnumDevices(
+            DI8DEVCLASS_ALL,
+            Some(enum_device_callback),
+            enum_param_null,
+            DIEDFL_ATTACHEDONLY,
         )?;
 
-        println!("created!");
+        println!("finished");
 
         Ok(())
     }
 }
-
 ```
-
-并获得类似
-```
-get hinstance HINSTANCE(140697735069696)
-DIRECT VERSION: 800
-IID_IDirectInput8W: BF798031-483A-4DA2-AA99-5D64ED369700
-created!
-```
-这样的输出结果。
-
-## 遍历 `DirectInput` 设备
-这里我们将使用 [IDirectInput8::EnumDevices 方法](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417804(v=vs.85))
