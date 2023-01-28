@@ -1,4 +1,4 @@
-# DirectInput 阅读理解：使用
+# DirectInput 阅读理解：使用 (1)
 接下来我们将跟随 [Using DirectInput](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416845(v=vs.85)) 即编程指引，尝试了解如何使用 `DirectInput`。
 
 ## 代码说明
