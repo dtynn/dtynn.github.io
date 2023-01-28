@@ -56,8 +56,6 @@ unsafe extern "system" fn enum_device_callback(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("A");
-
     unsafe {
         let hinstance = GetModuleHandleW(None)?;
         println!("get hinstance {:?}", hinstance);
