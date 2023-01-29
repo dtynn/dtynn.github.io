@@ -1,7 +1,7 @@
 # DirectInput 阅读理解：使用 (1)
 接下来我们将跟随 [Using DirectInput](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416845(v=vs.85)) 即编程指引，尝试了解如何使用 `DirectInput`。
 
-## 代码说明
+## 预备
 文档中所使用的代码多使用 c++/c#。考虑到我们的目标，我会尝试使用 rust 来进行替换实现。
 
 在此简单地介绍一下开发环境：
@@ -28,7 +28,7 @@
 再使用 [IDirectInput8::EnumDevices 方法](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417804(v=vs.85)) 遍历输入设备。
 
 ```rust
-use core::{ffi::c_void, mem::MaybeUninit};
+use core::ffi::c_void;
 use std::ptr::null_mut;
 
 use windows::{
@@ -60,8 +60,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let hinstance = GetModuleHandleW(None)?;
         println!("get hinstance {:?}", hinstance);
 
-        let mut res = MaybeUninit::zeroed();
-        let res_ptr = res.as_mut_ptr();
+        println!("init null mut");
+        let mut res = null_mut();
+        let res_ptr: *mut *mut c_void = &mut res as *mut *mut c_void;
+
+        // let mut res = MaybeUninit::zeroed();
+        // let res_ptr = res.as_mut_ptr();
 
         let refiid = <IDirectInput8W as Interface>::IID;
 
@@ -70,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         DirectInput8Create(hinstance, DIRECTINPUT_VERSION, &refiid, res_ptr, None)?;
 
-        let di = IDirectInput8W::from_raw(*res_ptr);
+        let di = IDirectInput8W::from_raw(res);
         println!("created!");
 
         println!("init");
