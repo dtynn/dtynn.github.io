@@ -83,7 +83,7 @@
 XInput 是跨 Xbox 与 Windows 平台的输入标准，同样由 DirectX SDK 提供，相比 `DirectInput` 具备以下优点：
   1. 更易于使用，设置更少
   2. 跨平台
-  3. 已经有一大批 Xbox 控制器
+  3. 支持已安装的 Xbox 控制器
   4. 支持振动
   5. 支持尚未发布的针对 Xbox 主机的控制器
 
