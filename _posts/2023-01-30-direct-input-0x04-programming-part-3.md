@@ -1,12 +1,46 @@
-# DirectInput 阅读理解：使用 (2)
-在前一篇文章中，我们了解了一下开发环境，并完成了一个简单的demo。
+# DirectInput 阅读理解：使用 (3)
+此前，我们已经可以感知到游戏控制器，并进行操作如信息获取等。
 
-接下来我们将继续深入了解 `DirectInput` 相关接口的使用。
+接下来我们将要尝试与游戏控制器进行数据交互。
 
+## 数据交互
 
-## 获取设备信息
-我们改造一下之前的demo，使之罗列并输出已连接的游戏控制器设备信息，为我们之后获取设备事件做准备：
+### 数据类型
+根据 [Buffered and Immediate Data](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416236(v=vs.85)) 文档中的描述可知，
+存在两种数据类型：
+- Buffered data，类似事件流
+- Immediate data，是状态快照
 
+### 交互方式
+常见的交互方式有两种：
+- Polling：定期轮询
+- Event Notification：事件通知
+
+其中，`Event Notification` 的方式需要基于 windows 的消息系统，可以感知以下状态变化：
+- 任一轴（axis)的位置变化
+- 按键的状态变化，按下/释放
+- POV 的方向变化
+- 设备失联
+
+## 实例
+在之前代码的基础上，我们需要：
+- 参考 [windows-rs/samples/windows/kernel_event](https://github.com/microsoft/windows-rs/blob/1685363e52e0be9052937096ba8605efb0a23a11/crates/samples/windows/kernel_event/src/main.rs)，了解 Event 机制；
+- 参考 [Device Setup](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416596(v=vs.85)) 进行完整的设备初始化；
+- 使用 [IDirectInputDevice8::GetDeviceData](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417894(v=vs.85)) 获取设备状态变更
+- 相应状态变化数据
+
+### 思考
+代码比较长，先说结论。
+
+在测试过程发现了一些现象和问题：
+- 事件中的对象与硬件实体的对应关系
+- 相比按键的触发、释放，轴位置的数据比较复杂，如何处理
+
+这也引发了我的思考：
+在真正的应用中，是否需要将按键事件和轴位置事件放进两个不同的事件循环，以不同的灵敏度进行侦测并相应。
+
+### 代码
+最终代码如下：
 
 ```rust
 use core::ffi::c_void;
@@ -16,39 +50,92 @@ use std::ptr::null_mut;
 use windows::{
     core::{Interface, Vtable, GUID, PCWSTR},
     Win32::{
-        Devices::HumanInterfaceDevice::*, Foundation::BOOL, System::LibraryLoader::GetModuleHandleW,
+        Devices::HumanInterfaceDevice::*,
+        Foundation::{CloseHandle, BOOL, HANDLE, WAIT_OBJECT_0},
+        System::LibraryLoader::GetModuleHandleW,
+        System::Threading::{CreateEventW, WaitForSingleObject},
     },
 };
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
+// from https://github.com/glfw/glfw/blob/master/deps/mingw/dinput.h
 const DIDFT_OPTIONAL: u32 = 0x80000000;
-const NULL: *const GUID = 0 as *const GUID;
+const NULL: *const GUID = ref_guid(0);
+
+const DIPROP_BUFFERSIZE: RefGUID = ref_guid(1);
+const DIPROP_AXISMODE: RefGUID = ref_guid(2);
+
+const DIPROPAXISMODE_ABS: u32 = 0;
+const DIPROPAXISMODE_REL: u32 = 1;
+
+const DIPROP_GRANULARITY: RefGUID = ref_guid(3);
+const DIPROP_RANGE: RefGUID = ref_guid(4);
+const DIPROP_DEADZONE: RefGUID = ref_guid(5);
+const DIPROP_SATURATION: RefGUID = ref_guid(6);
+const DIPROP_FFGAIN: RefGUID = ref_guid(7);
+const DIPROP_FFLOAD: RefGUID = ref_guid(8);
+const DIPROP_AUTOCENTER: RefGUID = ref_guid(9);
+
+const DIPROPAUTOCENTER_OFF: u32 = 0;
+const DIPROPAUTOCENTER_ON: u32 = 1;
+
+const DIPROP_CALIBRATIONMODE: RefGUID = ref_guid(10);
+
+const DIPROPCALIBRATIONMODE_COOKED: u32 = 0;
+const DIPROPCALIBRATIONMODE_RAW: u32 = 1;
+
+const DIPROP_CALIBRATION: RefGUID = ref_guid(11);
+const DIPROP_GUIDANDPATH: RefGUID = ref_guid(12);
+const DIPROP_INSTANCENAME: RefGUID = ref_guid(13);
+const DIPROP_PRODUCTNAME: RefGUID = ref_guid(14);
+
+const DIPROP_JOYSTICKID: RefGUID = ref_guid(15);
+const DIPROP_GETPORTDISPLAYNAME: RefGUID = ref_guid(16);
+
+const DIPROP_PHYSICALRANGE: RefGUID = ref_guid(18);
+const DIPROP_LOGICALRANGE: RefGUID = ref_guid(19);
+
+const DIPROP_KEYNAME: RefGUID = ref_guid(20);
+const DIPROP_CPOINTS: RefGUID = ref_guid(21);
+const DIPROP_APPDATA: RefGUID = ref_guid(22);
+const DIPROP_SCANCODE: RefGUID = ref_guid(23);
+const DIPROP_VIDPID: RefGUID = ref_guid(24);
+const DIPROP_USERNAME: RefGUID = ref_guid(25);
+const DIPROP_TYPENAME: RefGUID = ref_guid(26);
+
+const DEVICE_DATA_BUFFER_SIZE: usize = 8;
+
+type RefGUID = *const GUID;
+
+const fn ref_guid(num: u32) -> RefGUID {
+    num as RefGUID
+}
 
 // from https://sourceforge.net/p/mingw-w64/mingw-w64/ci/ce5a9f624dfc691082dad2ea2af7b1985e3476b5/tree/mingw-w64-crt/libsrc/dinput_joy2.c
 const RGODF_DI_JOY2_NUM: usize = 164;
 const RGODF_DI_JOY2: [DIOBJECTDATAFORMAT; RGODF_DI_JOY2_NUM] = [
     DIOBJECTDATAFORMAT {
         pguid: &GUID_XAxis,
-        dwOfs: 0x0,
+        dwOfs: 0x00,
         dwType: DIDFT_ABSAXIS | DIDFT_RELAXIS | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
         dwFlags: DIDOI_ASPECTPOSITION,
     },
     DIOBJECTDATAFORMAT {
         pguid: &GUID_YAxis,
-        dwOfs: 0x4,
+        dwOfs: 0x04,
         dwType: DIDFT_ABSAXIS | DIDFT_RELAXIS | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
         dwFlags: DIDOI_ASPECTPOSITION,
     },
     DIOBJECTDATAFORMAT {
         pguid: &GUID_ZAxis,
-        dwOfs: 0x8,
+        dwOfs: 0x08,
         dwType: DIDFT_ABSAXIS | DIDFT_RELAXIS | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
         dwFlags: DIDOI_ASPECTPOSITION,
     },
     DIOBJECTDATAFORMAT {
         pguid: &GUID_RxAxis,
-        dwOfs: 0xc,
+        dwOfs: 0x0c,
         dwType: DIDFT_ABSAXIS | DIDFT_RELAXIS | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
         dwFlags: DIDOI_ASPECTPOSITION,
     },
@@ -1072,13 +1159,14 @@ pub struct JoyStickDevice {
     cap: DIDEVCAPS,
     product_name: String,
     instance_name: String,
+    event_handler: HANDLE,
 
     objects: Vec<JoyStickDeviceObject>,
 }
 
 impl Drop for JoyStickDevice {
     fn drop(&mut self) {
-        if let Err(e) = unsafe { self.di.Unacquire() } {
+        if let Err(e) = unsafe { self.deinit() } {
             println!("failed to unacquire device: {:?}", e);
         };
         println!("device unacquired");
@@ -1092,6 +1180,7 @@ impl JoyStickDevice {
         raw: DIDEVICEINSTANCEW,
         di: IDirectInputDevice8W,
     ) -> Result<Self> {
+        let event_handler = CreateEventW(None, false, true, None)?;
         let mut jdev = JoyStickDevice {
             _raw: raw,
             di,
@@ -1101,22 +1190,56 @@ impl JoyStickDevice {
             },
             product_name: pname,
             instance_name: iname,
+            event_handler,
             objects: Vec::new(),
         };
 
-        jdev.initialize()?;
         jdev.get_all_objects()?;
+        jdev.initialize()?;
 
         Ok(jdev)
+    }
+
+    unsafe fn set_property(&mut self, prop: RefGUID, how: u32, val: u32) -> Result<()> {
+        let mut val = DIPROPDWORD {
+            diph: DIPROPHEADER {
+                dwSize: size_of::<DIPROPDWORD>() as u32,
+                dwHeaderSize: size_of::<DIPROPHEADER>() as u32,
+                dwObj: 0,
+                dwHow: how,
+            },
+            dwData: val,
+        };
+
+        self.di
+            .SetProperty(prop, &mut val.diph as *mut DIPROPHEADER)?;
+
+        Ok(())
+    }
+
+    unsafe fn set_device_property(&mut self, prop: RefGUID, val: u32) -> Result<()> {
+        self.set_property(prop, DIPH_DEVICE, val)
     }
 
     unsafe fn initialize(&mut self) -> Result<()> {
         self.di
             .SetDataFormat(&DF_DI_JOYSTICK2 as *const DIDATAFORMAT as *mut DIDATAFORMAT)?;
+        self.di.GetCapabilities(&mut self.cap as *mut DIDEVCAPS)?;
+
+        self.set_device_property(DIPROP_BUFFERSIZE, DEVICE_DATA_BUFFER_SIZE as u32)?;
+        self.set_device_property(DIPROP_AXISMODE, DIPROPAXISMODE_ABS)?;
+
+        self.di.SetEventNotification(Some(self.event_handler))?;
         self.di.Acquire()?;
 
-        self.di.GetCapabilities(&mut self.cap as *mut DIDEVCAPS)?;
         println!("device acquired");
+        Ok(())
+    }
+
+    unsafe fn deinit(&mut self) -> Result<()> {
+        self.di.Unacquire()?;
+        self.di.SetEventNotification(None)?;
+        CloseHandle(self.event_handler);
         Ok(())
     }
 
@@ -1137,6 +1260,30 @@ impl JoyStickDevice {
 
     fn di_poll_required(&self) -> bool {
         self.cap.dwFlags & DIDC_POLLEDDATAFORMAT != 0
+    }
+
+    unsafe fn wait_for_buffered_states(
+        &mut self,
+        timeout_millis: Option<u32>,
+    ) -> Result<([DIDEVICEOBJECTDATA; DEVICE_DATA_BUFFER_SIZE], usize, bool)> {
+        match WaitForSingleObject(self.event_handler, timeout_millis.unwrap_or(u32::MAX)) {
+            WAIT_OBJECT_0 => {}
+            other => return Err(format!("unexpected event signal {:?}", other).into()),
+        };
+
+        let mut objects: [DIDEVICEOBJECTDATA; DEVICE_DATA_BUFFER_SIZE] = Default::default();
+        let mut read_size = objects.len() as u32;
+
+        match self.di.GetDeviceData(
+            size_of::<DIDEVICEOBJECTDATA>() as u32,
+            objects.as_mut_ptr(),
+            &mut read_size,
+            0,
+        ) {
+            Ok(_) => Ok((objects, read_size as usize, false)),
+            Err(e) if e.code().0 == DI_BUFFEROVERFLOW => Ok((objects, read_size as usize, true)),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
@@ -1205,7 +1352,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("get all devices: {:?}", e);
         }
 
-        for (id, device) in sticks.devices.iter().enumerate() {
+        for (id, device) in sticks.devices.iter_mut().enumerate() {
             println!(
                 "#{:03} {}:{}, data format poll required: {}",
                 id,
@@ -1217,6 +1364,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for (io, object) in device.objects.iter().enumerate() {
                 println!("\t#{:03} {}", io, object.name);
             }
+
+            let mut captured = 0;
+            loop {
+                if captured >= 10 {
+                    break;
+                }
+
+                match device.wait_for_buffered_states(Some(3000)) {
+                    Ok(r) => {
+                        if r.1 != 0 {
+                            for state in r.0.into_iter().take(r.1) {
+                                // cares only about butoo press & release
+                                if state.dwOfs >= 0x30 {
+                                    println!(
+                                        "button 0x{:04x}: {}",
+                                        state.dwOfs,
+                                        if state.dwData == 0 {
+                                            "released"
+                                        } else {
+                                            "pressed"
+                                        }
+                                    );
+                                    captured += 1;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("failed to wait for states: {:?}", e);
+                    }
+                };
+            }
         }
 
         println!("finished");
@@ -1226,21 +1405,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-这段 demo 组合使用了
-- [IDirectInput8::EnumDevices](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417804(v=vs.85))
-- [IDirectInput8::CreateDevice](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417803(v=vs.85))
-- [IDirectInputDevice8::GetCapabilities](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417892(v=vs.85))
-- [IDirectInputDevice8::SetDataFormat](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417925(v=vs.85))
-- [IDirectInputDevice8::Acquire](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417818(v=vs.85))
-- [IDirectInputDevice8::Unacquire](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417931(v=vs.85))
-- [IDirectInputDevice8::EnumObjects](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee417889(v=vs.85))
-
-等接口，定义了 `JoySticks -> JoyStickDevice -> JoyStickDeviceObject` 三层抽象，并演示了通过 Callback 传递对象引用（指针）的方式。
-
-在我的开发机器上，程序执行将输出：
-
+使用这段示例代码，可以捕获并输出手柄上按键的按下和释放，测试输出如下：
 ```
-get hinstance HINSTANCE(140699685421056)
+get hinstance HINSTANCE(140695589355520)
 DIRECT VERSION: 800
 IID: BF798031-483A-4DA2-AA99-5D64ED369700
 created!
@@ -1269,8 +1436,16 @@ device acquired
         #019 Y 旋转
         #020 X 旋转
         #021 集合 0 - 游戏板
+button 0x0035: pressed
+button 0x0035: released
+button 0x0034: pressed
+button 0x0034: released
+button 0x0036: pressed
+button 0x0036: released
+button 0x0037: pressed
+button 0x0037: released
+button 0x0031: pressed
+button 0x0031: released
 finished
 device unacquired
 ```
-
-其中的 `Wireless Controller` 就是我的 DS4 手柄。
