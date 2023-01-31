@@ -12,9 +12,9 @@
   虽然在 ds4 上它们看起来像是四个独立的按键，但是在接入层实际是一个整体，输入为 [无，上，下，左，右，左上，右上，左下，右下]
   这样9个枚举值。
 
-- 左右摇杆都是 Axis Object，但是并非严格对应成以GUID标识的 XAxis/YAxis 和 RYAxis/RYAxis；行程对应的输入值范围是 [0, 65535]，远点位置为 32767
+- 左右摇杆都是 Axis Object，但是并非严格对应成以GUID标识的 XAxis/YAxis 和 RYAxis/RYAxis；行程对应的输入值范围是 [0, 65535]，原点位置值为 32767
 
-- L2 和 R2 都会同时映射出一个 Button Object 和 一个 Axis Object，Button 的输入表示触发与否，Axis 的输入表示触发行程，值范围为 [0, 65535]
+- L2 和 R2 都会同时映射出一个 Button Object 和 一个 Axis Object，Button 的输入表示触发与否，Axis 的输入表示触发行程，值范围为 [0, 65535], 原点位置值为0
 
 - 触摸板的触摸事件暂时没有找到对应事件，而触摸板的按下/释放被映射成一个 Button Object
 
