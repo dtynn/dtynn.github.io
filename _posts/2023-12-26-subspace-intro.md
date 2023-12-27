@@ -54,8 +54,14 @@ node 是进行同步、交互等的节点。我们以 bin 文件 [crates/subspac
 farmer 功能性的描述可以参考：[subspace-farmer#architecture](https://github.com/subspace/subspace/tree/7d594532e2ab8ac8edaa0cace7a75d004d93bd24/crates/subspace-farmer#architecture)。
 
 其基本逻辑为：
-- plotting 子模块接受链的历史数据并进行封装
-- farming 子模块接收链挑战，并尝试在本地已封装的数据块中找出满足挑战条件的数据块，即出块
+- [plotting](https://github.com/subspace/subspace/blob/7d594532e2ab8ac8edaa0cace7a75d004d93bd24/crates/subspace-farmer/src/single_disk_farm/plotting.rs) 子模块接受链的历史数据并进行封装
+- [farming](https://github.com/subspace/subspace/blob/7d594532e2ab8ac8edaa0cace7a75d004d93bd24/crates/subspace-farmer/src/single_disk_farm/farming.rs) 子模块接收链挑战，并尝试在本地已封装的数据块中找出满足挑战条件的数据块，即出块
+
+##### farming
+[farming](https://github.com/subspace/subspace/blob/7d594532e2ab8ac8edaa0cace7a75d004d93bd24/crates/subspace-farmer/src/single_disk_farm/farming.rs)
+
+##### plotting
+[plotting](https://github.com/subspace/subspace/blob/7d594532e2ab8ac8edaa0cace7a75d004d93bd24/crates/subspace-farmer/src/single_disk_farm/plotting.rs)
 
 #### node-farmer 关系
 farmer 依赖于 node，且设置自己的 `reward address`，基本可以视为两者采用了一种分布式的协作方式。
@@ -76,3 +82,11 @@ farmer 依赖于 node，且设置自己的 `reward address`，基本可以视为
 - timekeeper
 - domain node
 - kzg
+
+## subspace 拓展
+
+### farming
+
+### plotting
+
+### pooling
